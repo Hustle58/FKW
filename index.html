@@ -2,42 +2,92 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hello, World</title>
-  <style>
-    body {
-      margin: 0;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      background: #eef7ee;
-      font-family: system-ui, sans-serif;
-    }
-    h1 { color: #2f5d34; margin-bottom: 0; }
-    svg { width: min(320px, 80vw); height: auto; }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Haze Tracker – Singapore PSI</title>
+  <meta name="description" content="Live 24-hr PSI and 1-hr PM2.5 for Singapore's regions, with threshold alerts.">
+  <meta name="theme-color" content="#1e2a47">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Haze Tracker">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <h1>Hello, World!</h1>
-  <svg viewBox="0 0 200 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A pink flower">
-    <!-- stem -->
-    <path d="M100 120 C95 170 105 210 100 255" stroke="#3a8a3f" stroke-width="6" fill="none" stroke-linecap="round"/>
-    <!-- leaves -->
-    <path d="M100 195 C70 190 55 170 50 160 C80 160 98 175 100 195Z" fill="#4caf50"/>
-    <path d="M101 220 C130 215 145 195 150 185 C120 185 102 200 101 220Z" fill="#4caf50"/>
-    <!-- petals -->
-    <g transform="translate(100 80)" fill="#f48fb1" stroke="#ec6a9a" stroke-width="1.5">
-      <ellipse cx="0" cy="-38" rx="18" ry="30"/>
-      <ellipse cx="0" cy="-38" rx="18" ry="30" transform="rotate(60)"/>
-      <ellipse cx="0" cy="-38" rx="18" ry="30" transform="rotate(120)"/>
-      <ellipse cx="0" cy="-38" rx="18" ry="30" transform="rotate(180)"/>
-      <ellipse cx="0" cy="-38" rx="18" ry="30" transform="rotate(240)"/>
-      <ellipse cx="0" cy="-38" rx="18" ry="30" transform="rotate(300)"/>
-    </g>
-    <!-- center -->
-    <circle cx="100" cy="80" r="16" fill="#ffd54f" stroke="#f9a825" stroke-width="2"/>
-  </svg>
+  <header class="top">
+    <div>
+      <h1>Haze Tracker</h1>
+      <p id="updated" class="muted" aria-live="polite">Loading…</p>
+    </div>
+    <button id="refresh" class="icon-btn" type="button" aria-label="Refresh readings">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+    </button>
+  </header>
+
+  <main>
+    <p id="error" class="error" role="alert" hidden></p>
+
+    <section id="overall" aria-label="Singapore overall"></section>
+    <section id="regions" class="grid" aria-label="PSI by region"></section>
+
+    <details class="legend card">
+      <summary>What do the readings mean?</summary>
+      <p><strong>24-hr PSI</strong> is NEA's headline index, updated hourly from the past 24 hours of readings.</p>
+      <ul class="bands">
+        <li><span class="dot good"></span>0–50 Good</li>
+        <li><span class="dot moderate"></span>51–100 Moderate</li>
+        <li><span class="dot unhealthy"></span>101–200 Unhealthy</li>
+        <li><span class="dot very-unhealthy"></span>201–300 Very unhealthy</li>
+        <li><span class="dot hazardous"></span>301+ Hazardous</li>
+      </ul>
+      <p><strong>1-hr PM2.5</strong> (µg/m³) is NEA's hourly fine-particle reading, which reacts faster than the 24-hr PSI. NEA doesn't publish a separate "1-hr PSI", so this is the 1-hour figure shown. Bands: Normal 0–55, Elevated 56–150, High 151–250, Very high 251+.</p>
+    </details>
+
+    <section class="card" aria-labelledby="alerts-h">
+      <h2 id="alerts-h">Haze alerts</h2>
+      <form id="alert-form" autocomplete="off">
+        <label for="region">Region</label>
+        <select id="region" name="region"></select>
+
+        <label for="threshold">Alert me when 24-hr PSI reaches</label>
+        <input id="threshold" name="threshold" type="number" inputmode="numeric" min="1" max="500" step="1" value="100" required>
+        <div class="chips" role="group" aria-label="Threshold presets">
+          <button type="button" class="chip" data-v="51">51 Moderate</button>
+          <button type="button" class="chip" data-v="101">101 Unhealthy</button>
+          <button type="button" class="chip" data-v="201">201 Very unhealthy</button>
+        </div>
+
+        <details class="advanced">
+          <summary>Advanced</summary>
+          <label for="apikey">data.gov.sg API key (optional)</label>
+          <input id="apikey" name="apikey" type="password" autocomplete="off" placeholder="Only needed if you hit rate limits">
+        </details>
+
+        <div class="row">
+          <button id="save" class="primary" type="submit">Turn on alerts</button>
+          <button id="off" class="ghost" type="button" hidden>Turn off</button>
+          <button id="test" class="ghost" type="button">Send test</button>
+        </div>
+        <p id="alert-status" class="muted" aria-live="polite"></p>
+      </form>
+      <p class="fine">Alerts fire once when the PSI crosses your threshold, and again only after it has dropped below and risen back. If it's already at or above the threshold when you turn alerts on, you'll be told straight away.</p>
+      <p id="bg-note" class="fine"></p>
+    </section>
+
+    <section id="install" class="card" hidden>
+      <h2>Add to home screen</h2>
+      <p id="install-text"></p>
+      <button id="install-btn" class="primary" type="button" hidden>Install app</button>
+    </section>
+  </main>
+
+  <footer>
+    <p>Data: National Environment Agency via <a href="https://data.gov.sg" target="_blank" rel="noopener">data.gov.sg</a>, used under the Singapore Open Data Licence. Not an official NEA app.</p>
+  </footer>
+
+  <script src="psi-core.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
